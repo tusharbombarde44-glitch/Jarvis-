@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000a1a">
+<title>JARVIS</title>
+<style>
+:root{--cyan:#00d4ff;--blue:#0077ff;--ink:#000a1a;--text:#c4f1ff;--green:#00ffa3}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;color:var(--text);font-family:Roboto,"Segoe UI",system-ui,sans-serif;
+  background:radial-gradient(circle at 50% 18%,#00213f 0,var(--ink) 65%)}
+#app{display:flex;flex-direction:column;height:100dvh;padding:env(safe-area-inset-top) 14px env(safe-area-inset-bottom)}
+header{display:flex;justify-content:space-between;align-items:center;padding:10px 2px}
+h1{font-weight:200;font-size:22px;letter-spacing:.45em;color:var(--cyan);text-shadow:0 0 14px var(--cyan)}
+.chip{background:none;border:1px solid rgba(0,212,255,.5);color:var(--cyan);border-radius:10px;padding:7px 12px;font-size:14px}
+#core{position:relative;width:132px;height:132px;margin:4px auto 0;flex:none}
+.ring{position:absolute;inset:0;border-radius:50%;border:2px solid transparent;border-top-color:var(--cyan);
+  border-bottom-color:var(--blue);animation:spin 5s linear infinite}
+.r2{inset:15px;animation-duration:3s;animation-direction:reverse}
+.r3{inset:30px;animation-duration:7s;border-style:dashed}
+.dot{position:absolute;inset:50px;border-radius:50%;background:radial-gradient(circle,#fff,var(--cyan) 45%,transparent 72%);
+  box-shadow:0 0 28px var(--cyan);animation:pulse 2.4s ease-in-out infinite}
+body.listening .dot{background:radial-gradient(circle,#fff,var(--green) 45%,transparent 72%);box-shadow:0 0 36px var(--green);animation-duration:.7s}
+body.speaking .ring{animation-duration:1.3s}
+body.thinking .r2{animation-duration:.8s}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{50%{transform:scale(1.25);opacity:.75}}
+#status{text-align:center;font-size:13px;color:var(--cyan);opacity:.85;min-height:20px;margin:6px 0 8px}
+#log{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:9px;padding:4px 2px 10px}
+.msg{max-width:88%;padding:10px 13px;border-radius:14px;font-size:15.5px;line-height:1.45;border:1px solid rgba(0,212,255,.35);
+  background:rgba(0,212,255,.07);word-wrap:break-word;white-space:pre-wrap}
+.me{align-self:flex-end;background:rgba(0,119,255,.22);border-color:rgba(0,119,255,.6)}
+.bot{align-self:flex-start}
+.open{display:inline-block;margin-top:8px;padding:7px 14px;border-radius:9px;background:var(--cyan);color:var(--ink);
+  font-weight:600;text-decoration:none}
+#bar{display:flex;gap:9px;align-items:center;padding:8px 0 12px}
+#txt{flex:1;min-width:0;background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.4);color:var(--text);
+  border-radius:24px;padding:12px 16px;font-size:16px;outline:none}
+#txt:focus{border-color:var(--cyan)}
+#mic{flex:none;width:58px;height:58px;border-radius:50%;border:2px solid var(--cyan);background:rgba(0,212,255,.12);
+  color:var(--cyan);font-size:25px;box-shadow:0 0 18px rgba(0,212,255,.45)}
+body.listening #mic{border-color:var(--green);color:var(--green);box-shadow:0 0 22px var(--green)}
+#send{flex:none;background:none;border:none;color:var(--cyan);font-size:24px;padding:4px 6px}
+#panel{position:fixed;inset:0;background:rgba(0,6,16,.94);display:none;align-items:center;justify-content:center;padding:18px;z-index:5}
+#panel.show{display:flex}
+#box{width:100%;max-width:420px;border:1px solid var(--cyan);border-radius:16px;padding:18px;background:#00142a}
+#box h2{font-weight:300;color:var(--cyan);margin-bottom:12px}
+#box label{display:block;font-size:13px;margin:12px 0 5px}
+#box input,#box select{width:100%;padding:11px;border-radius:9px;border:1px solid rgba(0,212,255,.5);background:#000a1a;color:var(--text);font-size:15px}
+#box a{color:var(--cyan)}
+#box .row{display:flex;gap:10px;margin-top:16px}
+#box .row button{flex:1;padding:12px;border-radius:10px;border:1px solid var(--cyan);background:none;color:var(--cyan);font-size:15px}
+#box .row .go{background:var(--cyan);color:var(--ink);font-weight:600}
+@media (prefers-reduced-motion:reduce){.ring,.dot{animation:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>JARVIS</h1><button class="chip" id="gear">Settings</button></header>
+  <div id="core"><div class="ring"></div><div class="ring r2"></div><div class="ring r3"></div><div class="dot"></div></div>
+  <div id="status">Ready</div>
+  <div id="log"></div>
+  <div id="bar">
+    <input id="txt" type="text" placeholder="Type or tap the mic" autocomplete="off">
+    <button id="send" aria-label="Send">&#10148;</button>
+    <button id="mic" aria-label="Speak">&#127908;</button>
+  </div>
+</div>
+
+<div id="panel"><div id="box">
+  <h2>Settings</h2>
+  <label for="key">Gemini API key (free from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>)</label>
+  <input id="key" type="password" placeholder="Paste key here" autocomplete="off">
+  <label for="model">AI model name</label>
+  <input id="model" type="text">
+  <label for="lang">Voice language</label>
+  <select id="lang"><option value="en-IN">English (India)</option><option value="hi-IN">Hindi (हिन्दी)</option></select>
+  <div class="row"><button id="cancel">Cancel</button><button class="go" id="save">Save</button></div>
+</div></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d){ try { return localStorage.getItem(k) || d; } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
+};
+const DEFAULT_MODEL = "gemini-2.5-flash";
+const SYSTEM = "You are JARVIS, a witty, polite personal assistant on the user's phone. Your replies are spoken aloud, " +
+  "so answer in 1 to 3 short sentences, plain text only, no markdown, no emojis, no lists. " +
+  "Reply in the language the user used: Hindi in Devanagari script, or English.";
+
+/* ---------- UI helpers ---------- */
+function setStatus(t){ $("status").textContent = t; }
+function addMsg(text, who, link){
+  const d = document.createElement("div");
+  d.className = "msg " + (who === "me" ? "me" : "bot");
+  d.textContent = text;
+  if (link){
+    const a = document.createElement("a");
+    a.className = "open"; a.href = link.href; a.textContent = link.label;
+    d.appendChild(document.createElement("br")); d.appendChild(a);
+  }
+  $("log").appendChild(d);
+  $("log").scrollTop = $("log").scrollHeight;
+}
+function reply(text, link){ addMsg(text, "bot", link); speak(text); }
+
+/* ---------- Voice output ---------- */
+function speak(text){
+  if (!("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = /[\u0900-\u097F]/.test(text) ? "hi-IN" : "en-IN";
+  const v = speechSynthesis.getVoices().find(x => x.lang.replace("_","-").toLowerCase().startsWith(u.lang.slice(0,2).toLowerCase()) &&
+            x.lang.replace("_","-").toLowerCase() === u.lang.toLowerCase()) ||
+            speechSynthesis.getVoices().find(x => x.lang.toLowerCase().startsWith(u.lang.slice(0,2)));
+  if (v) u.voice = v;
+  u.onstart = () => { document.body.classList.add("speaking"); setStatus("Speaking…"); };
+  u.onend = u.onerror = () => { document.body.classList.remove("speaking"); setStatus("Ready"); };
+  speechSynthesis.speak(u);
+}
+if ("speechSynthesis" in window) speechSynthesis.getVoices();
+
+/* ---------- Voice input ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, listening = false;
+function toggleMic(){
+  if (listening && rec){ rec.stop(); return; }
+  if (!SR){ addMsg("This browser has no speech recognition. Open JARVIS in Chrome.", "bot"); return; }
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  rec = new SR();
+  rec.lang = store.get("lang", "en-IN");
+  rec.interimResults = true;
+  rec.continuous = false;
+  let heard = "";
+  rec.onstart = () => { listening = true; document.body.classList.add("listening"); setStatus("Listening…"); };
+  rec.onresult = e => {
+    heard = Array.from(e.results).map(r => r[0].transcript).join(" ");
+    setStatus("“" + heard + "”");
+  };
+  rec.onerror = e => {
+    const m = { "not-allowed": "Microphone blocked. Allow it in Chrome: lock icon > Permissions > Microphone.",
+      "no-speech": "I did not hear anything. Tap the mic and try again.",
+      "network": "Speech recognition needs internet.",
+      "audio-capture": "No microphone found." };
+    addMsg(m[e.error] || ("Mic error: " + e.error), "bot");
+  };
+  rec.onend = () => {
+    listening = false; document.body.classList.remove("listening");
+    if (heard.trim()) handle(heard.trim()); else setStatus("Ready");
+  };
+  try { rec.start(); } catch(e){ setStatus("Ready"); }
+}
+
+/* ---------- Local utilities ---------- */
+function timeReply(hi){
+  const d = new Date(), h = d.getHours(), m = d.getMinutes(), h12 = h % 12 || 12;
+  if (!hi) return "It is " + h12 + ":" + String(m).padStart(2, "0") + " " + (h >= 12 ? "PM" : "AM") + ".";
+  const part = h < 5 ? "रात" : h < 12 ? "सुबह" : h < 16 ? "दोपहर" : h < 20 ? "शाम" : "रात";
+  return "अभी " + part + " के " + h12 + " बजकर " + m + " मिनट हुए हैं।";
+}
+function dateReply(hi){
+  const s = new Date().toLocaleDateString(hi ? "hi-IN" : "en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  return (hi ? "आज " : "Today is ") + s + (hi ? " है।" : ".");
+}
+function tryCalc(t){
+  let s = t.replace(/^(please\s+)?(calculate|compute|solve|what is|what's|whats|कैलकुलेट|गणना करो|हिसाब लगाओ)\s*/, "")
+    .replace(/multiplied by|times|into|गुणा|×|\bx\b/g, "*").replace(/divided by|भाग|÷/g, "/")
+    .replace(/plus|जोड़|प्लस/g, "+").replace(/minus|घटा|माइनस/g, "-");
+  if (!/^[0-9+\-*\/%().\s]+$/.test(s) || !/[0-9]\s*[+\-*\/%]\s*[(0-9]/.test(s)) return null;
+  try {
+    const v = Function('"use strict";return (' + s + ")")();
+    return (typeof v === "number" && isFinite(v)) ? Math.round(v * 1e6) / 1e6 : null;
+  } catch(e){ return null; }
+}
+function tryTimer(t, hi){
+  const m = t.match(/(\d+)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|सेकंड|सेकण्ड|मिनट|घंटे|घंटा)/);
+  if (!m || !/timer|टाइमर/.test(t)) return null;
+  const n = parseInt(m[1], 10), u = m[2];
+  const ms = n * (/^(sec|सेक)/.test(u) ? 1000 : /^(min|मिनट)/.test(u) ? 60000 : 3600000);
+  setTimeout(() => {
+    const msg = hi ? "आपका टाइमर पूरा हो गया।" : "Your timer is complete.";
+    reply(msg);
+    if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+  }, ms);
+  return hi ? n + " " + u + " का टाइमर शुरू हो गया। JARVIS खुला रखिए।" : "Timer set for " + n + " " + u + ". Keep JARVIS open.";
+}
+
+/* ---------- App launching (Chrome intent links) ---------- */
+const GMAPS = "com.google.android.apps.maps";
+const intentHttps = (host, pkg, path) => "intent://" + host + (path || "/") + "#Intent;scheme=https;package=" + pkg + ";end";
+const APPS = [
+  { n: "WhatsApp", k: ["whatsapp", "whats app", "व्हाट्सएप", "व्हाट्सऐप", "वॉट्सऐप"], u: "intent://send/#Intent;scheme=whatsapp;package=com.whatsapp;end" },
+  { n: "YouTube", k: ["youtube", "you tube", "यूट्यूब"], u: intentHttps("www.youtube.com", "com.google.android.youtube") },
+  { n: "Instagram", k: ["instagram", "इंस्टाग्राम"], u: intentHttps("www.instagram.com", "com.instagram.android") },
+  { n: "Facebook", k: ["facebook", "फेसबुक"], u: intentHttps("www.facebook.com", "com.facebook.katana") },
+  { n: "Spotify", k: ["spotify", "स्पॉटिफाई"], u: intentHttps("open.spotify.com", "com.spotify.music") },
+  { n: "Google Maps", k: ["maps", "google maps", "मैप्स", "मैप"], u: intentHttps("www.google.com", GMAPS, "/maps") },
+  { n: "Gmail", k: ["gmail", "email", "mail", "जीमेल", "ईमेल"], u: "mailto:" },
+  { n: "Phone dialer", k: ["dialer", "phone", "डायलर", "फोन"], u: "tel:" },
+  { n: "Messages", k: ["messages", "sms", "मैसेज"], u: "sms:" },
+  { n: "Play Store", k: ["play store", "playstore", "प्ले स्टोर"], u: "market://search?q=apps" },
+  { n: "Chrome", k: ["chrome", "browser", "google", "क्रोम", "ब्राउज़र"], u: "https://www.google.com" }
+];
+function openUrl(name, url, hi){
+  const msg = hi ? name + " खोल रहा हूँ। न खुले तो नीचे बटन दबाइए।" : "Opening " + name + ". If nothing happens, tap the button.";
+  reply(msg, { href: url, label: (hi ? "खोलें: " : "Open ") + name });
+  setTimeout(() => { window.location.href = url; }, 700);
+}
+const q = s => encodeURIComponent(s.trim());
+
+function runLocal(t, hi){
+  let m;
+  if (/what('?s| is) the time|what time is it|current time|tell me the time|time now|कितने बजे|अभी समय|समय क्या|टाइम क्या/.test(t)) return timeReply(hi);
+  if (/what('?s| is) (the )?(date|day)|today'?s date|what day is it|आज की तारीख|तारीख क्या|कौन सा दिन|आज कौन सा/.test(t)) return dateReply(hi);
+  const c = tryCalc(t);
+  if (c !== null) return (hi ? "उत्तर है " : "The answer is ") + c;
+  const tm = tryTimer(t, hi);
+  if (tm) return tm;
+
+  if ((m = t.match(/(?:call|dial|कॉल करो|फोन करो)\s*([+\d][\d\s-]{5,})/))){
+    const num = m[1].replace(/[\s-]/g, "");
+    openUrl(num, "tel:" + num, hi); return "";
+  }
+  if ((m = t.match(/^(?:navigate to|directions to|take me to|route to)\s+(.+)/)) || (m = t.match(/^(.+?)\s+(?:का रास्ता बताओ|नेविगेट करो)$/))){
+    openUrl("Google Maps", intentHttps("www.google.com", GMAPS, "/maps/search/?api=1&query=" + q(m[1])), hi); return "";
+  }
+  if ((m = t.match(/^play\s+(.+?)(?:\s+on youtube)?$/)) || (m = t.match(/^(.+?)\s+(?:चलाओ|बजाओ)$/))){
+    openUrl("YouTube", intentHttps("www.youtube.com", "com.google.android.youtube", "/results?search_query=" + q(m[1])), hi); return "";
+  }
+  if ((m = t.match(/^(?:search for|search|google|look up)\s+(.+)/)) || (m = t.match(/^(.+?)\s+(?:सर्च करो|खोजो|गूगल करो)$/))){
+    openUrl("Google", "https://www.google.com/search?q=" + q(m[1]), hi); return "";
+  }
+  if (/\b(open|launch|start)\b|खोलो|खोल दो|खोलिए|चलाओ|चालू करो/.test(t)){
+    const app = APPS.find(a => a.k.some(k => t.includes(k)));
+    if (app){ openUrl(app.n, app.u, hi); return ""; }
+    return hi ? "यह ऐप मैं अभी नहीं खोल सकता। मैं WhatsApp, YouTube, Instagram, Maps, Gmail और कुछ और खोल सकता हूँ।"
+              : "I cannot open that app yet. I can open WhatsApp, YouTube, Instagram, Maps, Gmail and a few more.";
+  }
+  return null;
+}
+
+/* ---------- AI (Google Gemini, free tier) ---------- */
+let history = [];
+async function askAI(text){
+  const key = store.get("key", "");
+  if (!key){ reply("Please add your free Gemini API key in Settings first."); openSettings(); return; }
+  if (!navigator.onLine){ reply("You are offline. I need internet for AI answers."); return; }
+  document.body.classList.add("thinking"); setStatus("Thinking…");
+  try {
+    const model = store.get("model", DEFAULT_MODEL);
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SYSTEM }] },
+        contents: history.concat([{ role: "user", parts: [{ text }] }]),
+        generationConfig: { maxOutputTokens: 800, temperature: 0.7 }
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error((data.error && data.error.message) || ("HTTP " + res.status));
+    const parts = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+    const out = parts ? parts.map(p => p.text || "").join("").trim() : "";
+    if (!out) throw new Error("Empty answer (the request may have been blocked).");
+    history.push({ role: "user", parts: [{ text }] }, { role: "model", parts: [{ text: out }] });
+    history = history.slice(-12);
+    reply(out);
+  } catch(e){
+    addMsg("AI error: " + e.message, "bot");
+    setStatus("Ready");
+  } finally {
+    document.body.classList.remove("thinking");
+  }
+}
+
+/* ---------- Main flow ---------- */
+async function handle(raw){
+  const text = raw.replace(/^\s*(hey |hi |ok |okay )?(jarvis|जार्विस|जारविस|जर्विस)[,\s]*/i, "").trim() || raw;
+  addMsg(raw, "me");
+  const hi = /[\u0900-\u097F]/.test(raw) || store.get("lang", "en-IN") === "hi-IN";
+  const local = runLocal(text.toLowerCase().replace(/[?!.,।]+$/g, ""), hi);
+  if (local === "") return;
+  if (local !== null){ reply(local); return; }
+  await askAI(text);
+}
+
+/* ---------- Settings ---------- */
+function openSettings(){
+  $("key").value = store.get("key", "");
+  $("model").value = store.get("model", DEFAULT_MODEL);
+  $("lang").value = store.get("lang", "en-IN");
+  $("panel").classList.add("show");
+}
+$("gear").onclick = openSettings;
+$("cancel").onclick = () => $("panel").classList.remove("show");
+$("save").onclick = () => {
+  store.set("key", $("key").value.trim());
+  store.set("model", $("model").value.trim() || DEFAULT_MODEL);
+  store.set("lang", $("lang").value);
+  $("panel").classList.remove("show");
+  addMsg("Settings saved.", "bot");
+};
+$("mic").onclick = toggleMic;
+function sendTyped(){ const v = $("txt").value.trim(); if (v){ $("txt").value = ""; handle(v); } }
+$("send").onclick = sendTyped;
+$("txt").addEventListener("keydown", e => { if (e.key === "Enter") sendTyped(); });
+
+addMsg("JARVIS online. Tap the microphone and speak, or type a message.", "bot");
+if (!store.get("key", "")) addMsg("First, open Settings and paste your free Gemini API key.", "bot");
+</script>
+</body>
+</html>
